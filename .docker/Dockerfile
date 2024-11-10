@@ -12,4 +12,4 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir  -r requirements.txt
 
 # Command to run the Python script
-CMD ["python", "main.py"]
+ENTRYPOINT [ "python", "main.py" ]
