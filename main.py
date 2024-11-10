@@ -65,3 +65,10 @@ for entity in json_data['Entity']:
 df = pd.concat(frames)
 
 df.to_parquet('stoptime_updates.parquet')
+
+# Upload the parquet file to S3
+s3_client.fput_object(
+    os.getenv('S3_BUCKET_PARQUET'),
+    'stoptime_updates.parquet',
+    'stoptime_updates.parquet'
+)
