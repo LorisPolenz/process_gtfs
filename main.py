@@ -51,7 +51,8 @@ def generate_record(entity):
 
 
 # Load compressed object from S3
-response = s3_client.get_object(os.getenv('S3_BUCKET'), args.object_name)
+response = s3_client.get_object(
+    os.getenv('S3_BUCKET_GTFS_RT'), args.object_name)
 
 # Decompress the object
 compressed_data = response.read()
@@ -64,11 +65,15 @@ for entity in json_data['Entity']:
 
 df = pd.concat(frames)
 
-df.to_parquet('stoptime_updates.parquet')
+parquet_buffer = BytesIO()
+df.to_parquet(parquet_buffer)
+parquet_buffer.seek(0)
 
 # Upload the parquet file to S3
-s3_client.fput_object(
-    os.getenv('S3_BUCKET_PARQUET'),
-    'stoptime_updates.parquet',
-    'stoptime_updates.parquet'
+s3_client.put_object(
+    bucket_name=os.getenv('S3_BUCKET_STOPTIME'),
+    object_name='stoptime_updates.parquet',
+    data=parquet_buffer,
+    length=parquet_buffer.getbuffer().nbytes,
+    content_type='application/octet-stream'
 )
