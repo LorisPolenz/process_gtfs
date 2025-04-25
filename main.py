@@ -1,12 +1,13 @@
 import os
 import json
 import gzip
+import math
 import zoneinfo
 import argparse
 import pandas as pd
 from io import BytesIO
 from minio import Minio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 zurich_tz = zoneinfo.ZoneInfo("Europe/Zurich")
 
@@ -23,6 +24,31 @@ s3_client = Minio(os.getenv('S3_ENDPOINT'),
                   secure=True)
 
 
+def process_start_datetime(start_date, start_time, trip_id):
+    # Can be greater than 24 hours according to GTFS specification
+    hour_nr = int(start_time.split(':')[0])
+
+    hours_actual = hour_nr % 24
+    days_actual = math.floor(hour_nr / 24)
+
+    # Convert the string to a datetime object
+    datetime_day = datetime.strptime(start_date, '%Y%m%d')
+
+    # Add the hours to the datetime objec t
+    datetime_day_actual = datetime_day + timedelta(days_actual)
+
+    final_datetime = datetime_day_actual.replace(
+        hour=hours_actual,
+        minute=int(start_time.split(':')[2]),
+        second=int(start_time.split(':')[2]),
+        tzinfo=zurich_tz)
+
+    if days_actual > 0:
+        print(trip_id, "has a start time greater than 24 hours")
+
+    return final_datetime.isoformat()
+
+
 def generate_record(entity):
     enriched_stoptime_updates = []
 
@@ -35,11 +61,13 @@ def generate_record(entity):
     for key in entity['TripUpdate']['StopTimeUpdate']:
         key['trip_id'] = entity['TripUpdate']['Trip']['TripId']
         key['route_id'] = entity['TripUpdate']['Trip']['RouteId']
-        key['start_datetime'] = datetime.strptime(
-            entity['TripUpdate']['Trip']['StartDate'] + ' ' +
+
+        key['start_datetime'] = process_start_datetime(
+            entity['TripUpdate']['Trip']['StartDate'],
             entity['TripUpdate']['Trip']['StartTime'],
-            '%Y%m%d %H:%M:%S'
-        ).replace(tzinfo=zurich_tz).isoformat()
+            key['trip_id']
+        )
+
         key['entity_id'] = entity['Id']
 
         if ':' in key['StopId']:
